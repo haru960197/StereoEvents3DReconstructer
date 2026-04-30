@@ -40,8 +40,8 @@ def main():
     
     # チェスボードの設定（内側の交点の数）
     # 実際の四角形の数ではなく、交点の数を指定します。例: 10x7のチェスボードなら、内側の交点は9x6になります。
-    BOARD_SIZE = (4, 4) 
-    SQUARE_SIZE = 0.005625  # 1マスのサイズ（メートル単位）
+    BOARD_SIZE = (6, 4) 
+    SQUARE_SIZE = 0.0249  # 1マスのサイズ（メートル単位）
     
     # タイムウィンドウ（マイクロ秒）。例: 50ms = 50000us
     # 点滅ディスプレイの周波数に合わせて調整してください
@@ -121,10 +121,11 @@ def main():
             cv2.imshow('Right', img_right)
             cv2.waitKey(1)
 
-            # 左右画像を横に連結して、フレーム番号で保存
-            merged = cv2.hconcat([img_left, img_right])
-            save_path = os.path.join(OUTPUT_DIR, f"{frame_count}.png")
-            cv2.imwrite(save_path, merged)
+            if DEBUG_MODE:
+                # 左右画像を横に連結して、フレーム番号で保存
+                merged = cv2.hconcat([img_left, img_right])
+                save_path = os.path.join(OUTPUT_DIR, f"{frame_count}.png")
+                cv2.imwrite(save_path, merged)
 
     print(f"\nコーナー検出終了: 全 {frame_count} フレーム中、{success_count} ペアのコーナーを取得しました。")
     cv2.destroyAllWindows()
