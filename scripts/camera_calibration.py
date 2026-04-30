@@ -3,6 +3,8 @@ import cv2
 import os
 from metavision_core.event_io import EventsIterator
 
+DEBUG_MODE = True
+
 def events_to_image(events, height, width):
     """
     イベント配列から2Dグレースケール画像を生成する関数
@@ -13,11 +15,16 @@ def events_to_image(events, height, width):
     if len(events) == 0:
         return img.astype(np.uint8)
 
-    # ピクセルごとにイベント数をカウント（ヒストグラム化）
-    # np.add.at は重複するインデックスの値を正しく加算します
-    np.add.at(img, (events['y'], events['x']), 1)
+    # p == 1 がONイベント（明るくなった）、p == 0 がOFFイベント（暗くなった）
+    on_events = events[events['p'] == 1]
     
-    # コントラストを強調するための正規化（外れ値の影響を下げるためパーセンタイルを使用）
+    if len(on_events) == 0:
+        return img.astype(np.uint8)
+
+    # 抽出したONイベントだけでヒストグラムを作成
+    np.add.at(img, (on_events['y'], on_events['x']), 1)
+    
+    # コントラストを強調するための正規化
     max_val = np.percentile(img, 99) 
     if max_val > 0:
         img = np.clip(img / max_val * 255.0, 0, 255)
@@ -33,12 +40,12 @@ def main():
     
     # チェスボードの設定（内側の交点の数）
     # 実際の四角形の数ではなく、交点の数を指定します。例: 10x7のチェスボードなら、内側の交点は9x6になります。
-    BOARD_SIZE = (9, 6) 
+    BOARD_SIZE = (4, 4) 
     SQUARE_SIZE = 0.005625  # 1マスのサイズ（メートル単位）
     
     # タイムウィンドウ（マイクロ秒）。例: 50ms = 50000us
     # 点滅ディスプレイの周波数に合わせて調整してください
-    DELTA_T = 30000 
+    DELTA_T = 30000
     OUTPUT_DIR = "scripts/calib_results"
     
     # OpenCVのコーナー検出サブピクセル精度の終了基準
@@ -78,19 +85,20 @@ def main():
         img_right = events_to_image(ev_right, height, width)
 
         # 少しぼかして、点と点の隙間を埋める（カーネルサイズ 5x5 は調整可能）
-        # img_left = cv2.GaussianBlur(img_left, (3, 3), 0)
-        # img_right = cv2.GaussianBlur(img_right, (3, 3), 0)
+        # img_left = cv2.GaussianBlur(img_left, (5, 5), 0)
+        # img_right = cv2.GaussianBlur(img_right, (5, 5), 0)
 
         # チェスボードのコーナー検出
         ret_l, corners_l = cv2.findChessboardCorners(img_left, BOARD_SIZE, None)
         ret_r, corners_r = cv2.findChessboardCorners(img_right, BOARD_SIZE, None)
 
-        if ret_l or ret_r:
-            print(f"フレーム {frame_count}: コーナー検出 - 左: {'成功' if ret_l else '失敗'}, 右: {'成功' if ret_r else '失敗'}")
+        if DEBUG_MODE:
             cv2.imshow('Left', img_left)
             cv2.imshow('Right', img_right)
             cv2.waitKey(1)
 
+            if ret_l or ret_r:
+                print(f"フレーム {frame_count}: コーナー検出 - 左: {'成功' if ret_l else '失敗'}, 右: {'成功' if ret_r else '失敗'}")
 
         # 左右両方の画像でコーナーが見つかった場合のみペアとして保存
         if ret_l and ret_r:
