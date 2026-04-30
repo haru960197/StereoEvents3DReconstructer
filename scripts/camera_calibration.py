@@ -27,12 +27,13 @@ def main():
     # ==========================================
     # 1. キャリブレーション設定
     # ==========================================
-    RAW_LEFT = "calib_master.raw"
-    RAW_RIGHT = "calib_slave.raw"
+    RAW_LEFT = "events_master.raw"
+    RAW_RIGHT = "events_slave.raw"
     
     # チェスボードの設定（内側の交点の数）
+    # 実際の四角形の数ではなく、交点の数を指定します。例: 10x7のチェスボードなら、内側の交点は9x6になります。
     BOARD_SIZE = (9, 6) 
-    SQUARE_SIZE = 0.025  # 1マスのサイズ（メートル単位、例: 25mm）
+    SQUARE_SIZE = 0.005625  # 1マスのサイズ（メートル単位）
     
     # タイムウィンドウ（マイクロ秒）。例: 50ms = 50000us
     # 点滅ディスプレイの周波数に合わせて調整してください
@@ -76,6 +77,10 @@ def main():
         # チェスボードのコーナー検出
         ret_l, corners_l = cv2.findChessboardCorners(img_left, BOARD_SIZE, None)
         ret_r, corners_r = cv2.findChessboardCorners(img_right, BOARD_SIZE, None)
+
+        cv2.imshow('Left', img_left)
+        cv2.imshow('Right', img_right)
+        cv2.waitKey(1)
 
         # 左右両方の画像でコーナーが見つかった場合のみペアとして保存
         if ret_l and ret_r:
