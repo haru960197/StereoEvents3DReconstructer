@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import os
 from metavision_core.event_io import EventsIterator
 
 def events_to_image(events, height, width):
@@ -37,7 +38,8 @@ def main():
     
     # タイムウィンドウ（マイクロ秒）。例: 50ms = 50000us
     # 点滅ディスプレイの周波数に合わせて調整してください
-    DELTA_T = 50000 
+    DELTA_T = 30000 
+    OUTPUT_DIR = "scripts/calib_results"
     
     # OpenCVのコーナー検出サブピクセル精度の終了基準
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -62,6 +64,7 @@ def main():
     height, width = mv_it_left.get_size()
     
     print("イベントデータの解析とコーナー検出を開始します...")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     frame_count = 0
     success_count = 0
@@ -73,14 +76,21 @@ def main():
         # イベントを画像に変換 
         img_left = events_to_image(ev_left, height, width)
         img_right = events_to_image(ev_right, height, width)
-        
+
+        # 少しぼかして、点と点の隙間を埋める（カーネルサイズ 5x5 は調整可能）
+        # img_left = cv2.GaussianBlur(img_left, (3, 3), 0)
+        # img_right = cv2.GaussianBlur(img_right, (3, 3), 0)
+
         # チェスボードのコーナー検出
         ret_l, corners_l = cv2.findChessboardCorners(img_left, BOARD_SIZE, None)
         ret_r, corners_r = cv2.findChessboardCorners(img_right, BOARD_SIZE, None)
 
-        cv2.imshow('Left', img_left)
-        cv2.imshow('Right', img_right)
-        cv2.waitKey(1)
+        if ret_l or ret_r:
+            print(f"フレーム {frame_count}: コーナー検出 - 左: {'成功' if ret_l else '失敗'}, 右: {'成功' if ret_r else '失敗'}")
+            cv2.imshow('Left', img_left)
+            cv2.imshow('Right', img_right)
+            cv2.waitKey(1)
+
 
         # 左右両方の画像でコーナーが見つかった場合のみペアとして保存
         if ret_l and ret_r:
@@ -102,6 +112,11 @@ def main():
             cv2.imshow('Left', img_left)
             cv2.imshow('Right', img_right)
             cv2.waitKey(1)
+
+            # 左右画像を横に連結して、フレーム番号で保存
+            merged = cv2.hconcat([img_left, img_right])
+            save_path = os.path.join(OUTPUT_DIR, f"{frame_count}.png")
+            cv2.imwrite(save_path, merged)
 
     print(f"\nコーナー検出終了: 全 {frame_count} フレーム中、{success_count} ペアのコーナーを取得しました。")
     cv2.destroyAllWindows()

@@ -1,3 +1,4 @@
 *.sh
 *.raw
 *.tmp_index
+/scripts/calib_results/
