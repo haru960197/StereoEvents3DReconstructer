@@ -43,9 +43,10 @@ def main():
     BOARD_SIZE = (6, 4) 
     SQUARE_SIZE = 0.0249  # 1マスのサイズ（メートル単位）
     
-    # タイムウィンドウ（マイクロ秒）。例: 50ms = 50000us
-    # 点滅ディスプレイの周波数に合わせて調整してください
-    DELTA_T = 30000
+    # スライディングウィンドウの設定
+    STEP_MS = 10000  # 10ms（10000us）ごとにイベントを取得
+    WINDOW_SIZE = 4  # 10ms × 4 = 40ms分のイベントを1つの画像に合成する
+
     OUTPUT_DIR = "scripts/calib_results"
     
     # OpenCVのコーナー検出サブピクセル精度の終了基準
@@ -65,8 +66,8 @@ def main():
     # 2. RAWファイルの同期読み込みとコーナー検出
     # ==========================================
     # EventsIterator を使うと、指定した時間(delta_t)ごとにイベントを取得できます
-    mv_it_left = EventsIterator(input_path=RAW_LEFT, delta_t=DELTA_T)
-    mv_it_right = EventsIterator(input_path=RAW_RIGHT, delta_t=DELTA_T)
+    mv_it_left = EventsIterator(input_path=RAW_LEFT, delta_t=STEP_MS)
+    mv_it_right = EventsIterator(input_path=RAW_RIGHT, delta_t=STEP_MS)
     
     height, width = mv_it_left.get_size()
     
@@ -76,18 +77,39 @@ def main():
     frame_count = 0
     success_count = 0
 
+    # 過去のイベントを保持するリスト（スライディングウィンドウ用）
+    history_left = []
+    history_right = []
+
     # 左右のイテレータを同時に回す（ハードウェア同期されている前提）
     for ev_left, ev_right in zip(mv_it_left, mv_it_right):
         frame_count += 1
+
+        # 新しいイベントをリストに追加
+        history_left.append(ev_left)
+        history_right.append(ev_right)
         
-        # イベントを画像に変換 
-        img_left = events_to_image(ev_left, height, width)
-        img_right = events_to_image(ev_right, height, width)
+        # 規定のサイズ（4つ）を超えたら、一番古いものを捨てる
+        if len(history_left) > WINDOW_SIZE:
+            history_left.pop(0)
+            history_right.pop(0)
+            
+        # まだ40ms分（4つ）溜まっていないうちは画像化をスキップ
+        if len(history_left) < WINDOW_SIZE:
+            continue
 
-        # 少しぼかして、点と点の隙間を埋める（カーネルサイズ 5x5 は調整可能）
-        # img_left = cv2.GaussianBlur(img_left, (5, 5), 0)
-        # img_right = cv2.GaussianBlur(img_right, (5, 5), 0)
-
+        # 過去40ms分のイベント配列をガッチャンコ（結合）して1つの配列にする
+        merged_ev_left = np.concatenate(history_left)
+        merged_ev_right = np.concatenate(history_right)
+        
+        # 結合したイベントを使って画像化（前回実装した極性フィルタリングが含まれる関数）
+        img_left = events_to_image(merged_ev_left, height, width)
+        img_right = events_to_image(merged_ev_right, height, width)
+        
+        # 点の隙間を埋めるためのぼかし
+        img_left = cv2.GaussianBlur(img_left, (5, 5), 0)
+        img_right = cv2.GaussianBlur(img_right, (5, 5), 0)
+        
         # チェスボードのコーナー検出
         ret_l, corners_l = cv2.findChessboardCorners(img_left, BOARD_SIZE, None)
         ret_r, corners_r = cv2.findChessboardCorners(img_right, BOARD_SIZE, None)
