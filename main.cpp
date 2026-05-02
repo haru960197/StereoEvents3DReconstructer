@@ -56,7 +56,20 @@ struct StereoGeometry {
     int max_vertical_diff_px = 2;
 };
 
-constexpr StereoGeometry kStereoGeometry{};
+// OpenCV stereo calibration reports the transform from the left camera frame
+// to the right camera frame. This code stores the inverse so that the slave
+// camera can be expressed in the master (left) camera frame.
+constexpr StereoGeometry kStereoGeometry{
+    Intrinsics{189.64636254, 189.30459292, 166.33715437, 160.30125211},
+    Intrinsics{182.27052197, 182.43067217, 151.66910044, 149.76042425},
+    Mat3{{
+        std::array<double, 3>{0.85146036, -0.03290782, -0.52338545},
+        std::array<double, 3>{0.01001269, 0.99886742, -0.04651474},
+        std::array<double, 3>{0.52432337, 0.03436496, 0.85082551},
+    }},
+    Vec3{0.104714342325, 0.001501643987, 0.029296619840},
+    2,
+};
 
 Vec3 add(const Vec3& a, const Vec3& b) {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
