@@ -25,9 +25,9 @@ class EventCloudViewer:
         
         # ---------------------------------------------------
         # 表示する時間枠（Time Window）: マイクロ秒単位
-        # 100000us = 100ms
+        # 500000us = 500ms
         # ---------------------------------------------------
-        self.time_window = 100000 
+        self.time_window = 500000 
 
         # 1. GUIアプリケーションの初期化
         gui.Application.instance.initialize()
