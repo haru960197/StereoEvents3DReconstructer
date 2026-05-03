@@ -1,0 +1,51 @@
+{
+  "input_csv": "events_master.csv",
+  "mask_image": "roi_mask.png",
+  "width": 320,
+  "height": 320,
+  "polygon": [
+    {
+      "x": 235,
+      "y": 252
+    },
+    {
+      "x": 91,
+      "y": 250
+    },
+    {
+      "x": 88,
+      "y": 118
+    },
+    {
+      "x": 232,
+      "y": 123
+    },
+    {
+      "x": 236,
+      "y": 252
+    }
+  ],
+  "windows": [
+    {
+      "start_ts": 843,
+      "end_ts": 30843
+    },
+    {
+      "start_ts": 2469131,
+      "end_ts": 2499131
+    },
+    {
+      "start_ts": 4937420,
+      "end_ts": 4967420
+    },
+    {
+      "start_ts": 7405709,
+      "end_ts": 7435709
+    },
+    {
+      "start_ts": 9873998,
+      "end_ts": 9903998
+    }
+  ],
+  "polarity": "both"
+}
