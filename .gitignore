@@ -1,4 +1,5 @@
 *.sh
 *.raw
+*.csv
 *.tmp_index
 /scripts/calib_results/
