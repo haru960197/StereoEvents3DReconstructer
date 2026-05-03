@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -198,10 +199,114 @@ struct ReconstructionPoint {
     double line_distance = 0.0;
 };
 
+struct MaskImage {
+    int width = 0;
+    int height = 0;
+    std::vector<std::uint8_t> pixels;
+
+    bool contains(int x, int y) const {
+        if (x < 0 || y < 0 || x >= width || y >= height) {
+            return false;
+        }
+        const std::size_t idx = static_cast<std::size_t>(y) *
+                                static_cast<std::size_t>(width) +
+                                static_cast<std::size_t>(x);
+        return pixels[idx] != 0;
+    }
+};
+
+std::string read_pnm_token(std::istream& is) {
+    while (true) {
+        int c = is.peek();
+        if (c == std::char_traits<char>::eof()) {
+            return "";
+        }
+        if (std::isspace(c)) {
+            is.get();
+            continue;
+        }
+        if (c == '#') {
+            std::string line;
+            std::getline(is, line);
+            continue;
+        }
+        break;
+    }
+
+    std::string token;
+    while (true) {
+        int c = is.peek();
+        if (c == std::char_traits<char>::eof() || std::isspace(c) || c == '#') {
+            break;
+        }
+        token.push_back(static_cast<char>(is.get()));
+    }
+    return token;
+}
+
+MaskImage load_mask_pgm(const std::string& path) {
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs) {
+        throw std::runtime_error("Failed to open mask image: " + path);
+    }
+
+    const std::string magic = read_pnm_token(ifs);
+    if (magic != "P5" && magic != "P2") {
+        throw std::runtime_error(
+            "Unsupported mask format. Only PGM (P5/P2) is supported in this build: " + path);
+    }
+
+    const std::string w_tok = read_pnm_token(ifs);
+    const std::string h_tok = read_pnm_token(ifs);
+    const std::string max_tok = read_pnm_token(ifs);
+    if (w_tok.empty() || h_tok.empty() || max_tok.empty()) {
+        throw std::runtime_error("Invalid PGM header: " + path);
+    }
+
+    const int width = std::stoi(w_tok);
+    const int height = std::stoi(h_tok);
+    const int max_value = std::stoi(max_tok);
+    if (width <= 0 || height <= 0 || max_value <= 0 || max_value > 255) {
+        throw std::runtime_error("Unsupported PGM dimensions/max value: " + path);
+    }
+
+    MaskImage mask;
+    mask.width = width;
+    mask.height = height;
+    mask.pixels.resize(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
+
+    if (magic == "P5") {
+        ifs.get();
+        ifs.read(reinterpret_cast<char*>(mask.pixels.data()),
+                 static_cast<std::streamsize>(mask.pixels.size()));
+        if (ifs.gcount() != static_cast<std::streamsize>(mask.pixels.size())) {
+            throw std::runtime_error("Failed to read full PGM pixel data: " + path);
+        }
+    } else {
+        for (std::size_t i = 0; i < mask.pixels.size(); ++i) {
+            const std::string v_tok = read_pnm_token(ifs);
+            if (v_tok.empty()) {
+                throw std::runtime_error("Failed to read PGM ascii pixel data: " + path);
+            }
+            const int v = std::stoi(v_tok);
+            if (v < 0 || v > max_value) {
+                throw std::runtime_error("Invalid PGM ascii pixel value: " + path);
+            }
+            mask.pixels[i] = static_cast<std::uint8_t>((v == 0) ? 0 : 255);
+        }
+    }
+
+    for (auto& px : mask.pixels) {
+        px = (px == 0) ? 0 : 255;
+    }
+    return mask;
+}
+
 std::vector<ReconstructionPoint> reconstruct(
     const std::vector<Event>& master_events,
     const std::vector<Event>& slave_events,
-    const StereoGeometry& geometry) {
+    const StereoGeometry& geometry,
+    const MaskImage* mask_image) {
     std::unordered_map<std::int64_t, std::vector<Event>> slave_by_ts;
     slave_by_ts.reserve(slave_events.size());
     for (const auto& e : slave_events) {
@@ -215,6 +320,10 @@ std::vector<ReconstructionPoint> reconstruct(
     const Vec3 C_slave = geometry.t_slave_in_master;
 
     for (const auto& em : master_events) {
+        if (mask_image != nullptr && !mask_image->contains(em.x, em.y)) {
+            continue;
+        }
+
         const auto it = slave_by_ts.find(em.timestamp);
         if (it == slave_by_ts.end()) {
             continue;
@@ -312,24 +421,31 @@ void write_points_csv(
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
-        const std::string master_path = "events_master.csv";
-        const std::string slave_path = "events_slave.csv";
-        const std::string output_path = "points3d.csv";
+        const std::string master_path = (argc > 1) ? argv[1] : "events_master.csv";
+        const std::string slave_path = (argc > 2) ? argv[2] : "events_slave.csv";
+        const std::string output_path = (argc > 3) ? argv[3] : "points3d.csv";
+        const std::string mask_path = (argc > 4) ? argv[4] : "roi_mask.pgm";
 
         const auto master_events = read_events(master_path);
         const auto slave_events = read_events(slave_path);
+        const auto mask_image = load_mask_pgm(mask_path);
 
         const auto points = reconstruct(
             master_events,
             slave_events,
-            kStereoGeometry);
+            kStereoGeometry,
+            &mask_image);
 
         write_points_csv(output_path, points);
 
+        std::cout << "Input master: " << master_path << '\n';
+        std::cout << "Input slave: " << slave_path << '\n';
         std::cout << "Read master events: " << master_events.size() << '\n';
         std::cout << "Read slave events: " << slave_events.size() << '\n';
+        std::cout << "Loaded ROI mask: " << mask_path
+                  << " (" << mask_image.width << "x" << mask_image.height << ")\n";
         std::cout << "Reconstructed points: " << points.size() << '\n';
         std::cout << "Output: " << output_path << '\n';
 
