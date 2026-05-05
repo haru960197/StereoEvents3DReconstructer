@@ -54,7 +54,7 @@ struct StereoGeometry {
     Vec3 t_slave_in_master{0.10, 0.0, 0.0};
 
     // Matching gate in pixel units.
-    int max_vertical_diff_px = 2;
+    int max_vertical_diff_px = 4;
 };
 
 // OpenCV stereo calibration reports the transform from the left camera frame
@@ -69,7 +69,7 @@ constexpr StereoGeometry kStereoGeometry{
         std::array<double, 3>{0.25434843, -0.01328200, 0.96702144},
     }},
     Vec3{0.081228488180, 0.000380422024, 0.000588326095},
-    2,
+    4,
 };
 
 Vec3 add(const Vec3& a, const Vec3& b) {
