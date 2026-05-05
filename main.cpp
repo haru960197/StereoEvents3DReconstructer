@@ -61,14 +61,14 @@ struct StereoGeometry {
 // to the right camera frame. This code stores the inverse so that the slave
 // camera can be expressed in the master (left) camera frame.
 constexpr StereoGeometry kStereoGeometry{
-    Intrinsics{189.64636254, 189.30459292, 166.33715437, 160.30125211},
-    Intrinsics{182.27052197, 182.43067217, 151.66910044, 149.76042425},
+    Intrinsics{180.31389392, 179.87572519, 162.68549150, 161.21700263},
+    Intrinsics{181.74648009, 181.55472284, 164.04623194, 160.32652751},
     Mat3{{
-        std::array<double, 3>{0.85146036, -0.03290782, -0.52338545},
-        std::array<double, 3>{0.01001269, 0.99886742, -0.04651474},
-        std::array<double, 3>{0.52432337, 0.03436496, 0.85082551},
+        std::array<double, 3>{0.96703887, -0.00885760, -0.25447468},
+        std::array<double, 3>{0.01194542, 0.99987256, 0.01059129},
+        std::array<double, 3>{0.25434843, -0.01328200, 0.96702144},
     }},
-    Vec3{0.104714342325, 0.001501643987, 0.029296619840},
+    Vec3{0.081228488180, 0.000380422024, 0.000588326095},
     2,
 };
 
