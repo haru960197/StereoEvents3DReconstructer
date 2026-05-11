@@ -275,6 +275,35 @@ Intrinsics parse_intrinsics_object(const std::string& text, const std::string& k
     return intrinsics;
 }
 
+Mat3 parse_mat3_field(const std::string& text, const std::string& key);
+
+Intrinsics intrinsics_from_matrix(const Mat3& matrix) {
+    return Intrinsics{
+        matrix.m[0][0],
+        matrix.m[1][1],
+        matrix.m[0][2],
+        matrix.m[1][2],
+    };
+}
+
+Intrinsics parse_intrinsics_field(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    skip_json_whitespace(text, pos);
+    if (pos >= text.size()) {
+        throw std::runtime_error("Missing JSON value for key: " + key);
+    }
+
+    if (text[pos] == '{') {
+        return parse_intrinsics_object(text, key);
+    }
+    if (text[pos] == '[') {
+        const Mat3 matrix = parse_mat3_field(text, key);
+        return intrinsics_from_matrix(matrix);
+    }
+
+    throw std::runtime_error("Unsupported JSON intrinsics format for key: " + key);
+}
+
 Vec3 parse_vec3_field(const std::string& text, const std::string& key) {
     std::size_t pos = find_json_value_start(text, key);
     const std::vector<double> values = parse_json_number_array(text, pos);
@@ -324,8 +353,8 @@ CalibrationResult load_calibration_json(const std::string& path) {
     const std::string text = read_text_file(path);
 
     CalibrationResult result{};
-    result.geometry.master_intrinsics = parse_intrinsics_object(text, "left_intrinsics");
-    result.geometry.slave_intrinsics = parse_intrinsics_object(text, "right_intrinsics");
+    result.geometry.master_intrinsics = parse_intrinsics_field(text, "left_intrinsics");
+    result.geometry.slave_intrinsics = parse_intrinsics_field(text, "right_intrinsics");
 
     const Mat3 R_left_to_right = parse_mat3_field(text, "rotation_left_to_right");
     const Vec3 t_left_to_right = parse_vec3_field(text, "translation_left_to_right");
