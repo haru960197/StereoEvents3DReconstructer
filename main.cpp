@@ -688,7 +688,7 @@ int main(int argc, char** argv) {
         const std::string output_path = (argc > 3) ? argv[3] : "points3d.csv";
         const std::string mask_path = (argc > 4) ? argv[4] : "roi_mask.pgm";
         const std::string calibration_path =
-            (argc > 5) ? argv[5] : "scripts/calib_results/calibration.json";
+            (argc > 5) ? argv[5] : "config/calibration.json";
 
         const auto master_events = read_events(master_path);
         const auto slave_events = read_events(slave_path);

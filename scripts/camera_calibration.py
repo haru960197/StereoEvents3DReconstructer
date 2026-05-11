@@ -48,7 +48,7 @@ def main():
     STEP_MS = 10000  # 10ms（10000us）ごとにイベントを取得
     WINDOW_SIZE = 4  # 10ms × 4 = 40ms分のイベントを1つの画像に合成する
 
-    OUTPUT_DIR = "scripts/calib_results"
+    OUTPUT_DIR = "config"
     
     # OpenCVのコーナー検出サブピクセル精度の終了基準
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
