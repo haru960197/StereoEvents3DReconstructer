@@ -196,8 +196,8 @@ def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description="Build a binary ROI mask from event CSV by drawing polygon on event preview image.")
 	parser.add_argument("--input", default="events_master.csv", help="Input event CSV path")
-	parser.add_argument("--output", default="roi_mask.pgm", help="Output binary mask image path")
-	parser.add_argument("--meta", default="roi_mask_meta.json", help="Output metadata JSON path")
+	parser.add_argument("--output", default="config/roi_mask.pgm", help="Output binary mask image path")
+	parser.add_argument("--meta", default="config/roi_mask_meta.json", help="Output metadata JSON path")
 	parser.add_argument("--width", type=int, default=320, help="Sensor width (320 = infer from data)")
 	parser.add_argument("--height", type=int, default=320, help="Sensor height (320 = infer from data)")
 	parser.add_argument("--window-us", type=int, default=30000, help="Accumulation window in microseconds")

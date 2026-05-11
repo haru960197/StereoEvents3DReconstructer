@@ -686,7 +686,7 @@ int main(int argc, char** argv) {
         const std::string master_path = (argc > 1) ? argv[1] : "events_master.csv";
         const std::string slave_path = (argc > 2) ? argv[2] : "events_slave.csv";
         const std::string output_path = (argc > 3) ? argv[3] : "points3d.csv";
-        const std::string mask_path = (argc > 4) ? argv[4] : "roi_mask.pgm";
+        const std::string mask_path = (argc > 4) ? argv[4] : "config/roi_mask.pgm";
         const std::string calibration_path =
             (argc > 5) ? argv[5] : "config/calibration.json";
 
