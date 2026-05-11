@@ -7,3 +7,4 @@ roi_mask.pgm
 roi_mask_meta.json
 
 /scripts/calib_results/
+/event_data/

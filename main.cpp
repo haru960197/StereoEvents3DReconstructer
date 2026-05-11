@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -54,22 +55,12 @@ struct StereoGeometry {
     Vec3 t_slave_in_master{0.10, 0.0, 0.0};
 
     // Matching gate in pixel units.
-    int max_vertical_diff_px = 2;
+    int max_vertical_diff_px = 4;
 };
 
-// OpenCV stereo calibration reports the transform from the left camera frame
-// to the right camera frame. This code stores the inverse so that the slave
-// camera can be expressed in the master (left) camera frame.
-constexpr StereoGeometry kStereoGeometry{
-    Intrinsics{189.64636254, 189.30459292, 166.33715437, 160.30125211},
-    Intrinsics{182.27052197, 182.43067217, 151.66910044, 149.76042425},
-    Mat3{{
-        std::array<double, 3>{0.85146036, -0.03290782, -0.52338545},
-        std::array<double, 3>{0.01001269, 0.99886742, -0.04651474},
-        std::array<double, 3>{0.52432337, 0.03436496, 0.85082551},
-    }},
-    Vec3{0.104714342325, 0.001501643987, 0.029296619840},
-    2,
+struct CalibrationResult {
+    StereoGeometry geometry{};
+    double reprojection_rms = 0.0;
 };
 
 Vec3 add(const Vec3& a, const Vec3& b) {
@@ -106,6 +97,275 @@ Vec3 matmul(const Mat3& m, const Vec3& v) {
         m.m[1][0] * v.x + m.m[1][1] * v.y + m.m[1][2] * v.z,
         m.m[2][0] * v.x + m.m[2][1] * v.y + m.m[2][2] * v.z,
     };
+}
+
+Mat3 transpose(const Mat3& m) {
+    Mat3 result{};
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col) {
+            result.m[row][col] = m.m[col][row];
+        }
+    }
+    return result;
+}
+
+std::string read_text_file(const std::string& path) {
+    std::ifstream ifs(path);
+    if (!ifs) {
+        throw std::runtime_error("Failed to open calibration file: " + path);
+    }
+
+    std::ostringstream oss;
+    oss << ifs.rdbuf();
+    return oss.str();
+}
+
+void skip_json_whitespace(const std::string& text, std::size_t& pos) {
+    while (pos < text.size() && std::isspace(static_cast<unsigned char>(text[pos]))) {
+        ++pos;
+    }
+}
+
+void expect_json_char(const std::string& text, std::size_t& pos, char expected) {
+    skip_json_whitespace(text, pos);
+    if (pos >= text.size() || text[pos] != expected) {
+        throw std::runtime_error(std::string("Invalid JSON structure, expected '") + expected + "'");
+    }
+    ++pos;
+}
+
+std::string parse_json_string(const std::string& text, std::size_t& pos) {
+    skip_json_whitespace(text, pos);
+    if (pos >= text.size() || text[pos] != '"') {
+        throw std::runtime_error("Invalid JSON string");
+    }
+    ++pos;
+
+    std::string result;
+    while (pos < text.size()) {
+        const char c = text[pos++];
+        if (c == '"') {
+            return result;
+        }
+        if (c == '\\') {
+            if (pos >= text.size()) {
+                throw std::runtime_error("Invalid JSON escape sequence");
+            }
+            const char escaped = text[pos++];
+            switch (escaped) {
+                case '"': result.push_back('"'); break;
+                case '\\': result.push_back('\\'); break;
+                case '/': result.push_back('/'); break;
+                case 'b': result.push_back('\b'); break;
+                case 'f': result.push_back('\f'); break;
+                case 'n': result.push_back('\n'); break;
+                case 'r': result.push_back('\r'); break;
+                case 't': result.push_back('\t'); break;
+                default:
+                    throw std::runtime_error("Unsupported JSON escape sequence");
+            }
+            continue;
+        }
+        result.push_back(c);
+    }
+
+    throw std::runtime_error("Unterminated JSON string");
+}
+
+double parse_json_number(const std::string& text, std::size_t& pos) {
+    skip_json_whitespace(text, pos);
+    std::size_t consumed = 0;
+    const double value = std::stod(text.substr(pos), &consumed);
+    pos += consumed;
+    return value;
+}
+
+std::size_t find_json_value_start(const std::string& text, const std::string& key) {
+    const std::string needle = '"' + key + '"';
+    const std::size_t key_pos = text.find(needle);
+    if (key_pos == std::string::npos) {
+        throw std::runtime_error("Missing JSON key: " + key);
+    }
+
+    const std::size_t colon_pos = text.find(':', key_pos + needle.size());
+    if (colon_pos == std::string::npos) {
+        throw std::runtime_error("Missing JSON separator for key: " + key);
+    }
+
+    return colon_pos + 1;
+}
+
+std::vector<double> parse_json_number_array(const std::string& text, std::size_t& pos) {
+    expect_json_char(text, pos, '[');
+
+    std::vector<double> values;
+    while (true) {
+        skip_json_whitespace(text, pos);
+        if (pos >= text.size()) {
+            throw std::runtime_error("Unterminated JSON array");
+        }
+        if (text[pos] == ']') {
+            ++pos;
+            break;
+        }
+
+        values.push_back(parse_json_number(text, pos));
+        skip_json_whitespace(text, pos);
+        if (pos >= text.size()) {
+            throw std::runtime_error("Unterminated JSON array");
+        }
+        if (text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (text[pos] == ']') {
+            ++pos;
+            break;
+        }
+        throw std::runtime_error("Invalid JSON array separator");
+    }
+
+    return values;
+}
+
+Intrinsics parse_intrinsics_object(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    expect_json_char(text, pos, '{');
+
+    Intrinsics intrinsics{};
+    while (true) {
+        skip_json_whitespace(text, pos);
+        if (pos >= text.size()) {
+            throw std::runtime_error("Unterminated JSON object");
+        }
+        if (text[pos] == '}') {
+            ++pos;
+            break;
+        }
+
+        const std::string field = parse_json_string(text, pos);
+        expect_json_char(text, pos, ':');
+        const double value = parse_json_number(text, pos);
+
+        if (field == "fx") {
+            intrinsics.fx = value;
+        } else if (field == "fy") {
+            intrinsics.fy = value;
+        } else if (field == "cx") {
+            intrinsics.cx = value;
+        } else if (field == "cy") {
+            intrinsics.cy = value;
+        }
+
+        skip_json_whitespace(text, pos);
+        if (pos >= text.size()) {
+            throw std::runtime_error("Unterminated JSON object");
+        }
+        if (text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (text[pos] == '}') {
+            ++pos;
+            break;
+        }
+        throw std::runtime_error("Invalid JSON object separator");
+    }
+
+    return intrinsics;
+}
+
+Mat3 parse_mat3_field(const std::string& text, const std::string& key);
+
+Intrinsics intrinsics_from_matrix(const Mat3& matrix) {
+    return Intrinsics{
+        matrix.m[0][0],
+        matrix.m[1][1],
+        matrix.m[0][2],
+        matrix.m[1][2],
+    };
+}
+
+Intrinsics parse_intrinsics_field(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    skip_json_whitespace(text, pos);
+    if (pos >= text.size()) {
+        throw std::runtime_error("Missing JSON value for key: " + key);
+    }
+
+    if (text[pos] == '{') {
+        return parse_intrinsics_object(text, key);
+    }
+    if (text[pos] == '[') {
+        const Mat3 matrix = parse_mat3_field(text, key);
+        return intrinsics_from_matrix(matrix);
+    }
+
+    throw std::runtime_error("Unsupported JSON intrinsics format for key: " + key);
+}
+
+Vec3 parse_vec3_field(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    const std::vector<double> values = parse_json_number_array(text, pos);
+    if (values.size() != 3) {
+        throw std::runtime_error("Expected 3 values for JSON array: " + key);
+    }
+    return {values[0], values[1], values[2]};
+}
+
+Mat3 parse_mat3_field(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    expect_json_char(text, pos, '[');
+
+    Mat3 result{};
+    for (int row = 0; row < 3; ++row) {
+        const std::vector<double> values = parse_json_number_array(text, pos);
+        if (values.size() != 3) {
+            throw std::runtime_error("Expected 3 values for JSON matrix row: " + key);
+        }
+        for (int col = 0; col < 3; ++col) {
+            result.m[row][col] = values[static_cast<std::size_t>(col)];
+        }
+
+        skip_json_whitespace(text, pos);
+        if (row < 2) {
+            if (pos >= text.size() || text[pos] != ',') {
+                throw std::runtime_error("Invalid JSON matrix separator: " + key);
+            }
+            ++pos;
+        }
+    }
+
+    skip_json_whitespace(text, pos);
+    if (pos >= text.size() || text[pos] != ']') {
+        throw std::runtime_error("Invalid JSON matrix termination: " + key);
+    }
+    ++pos;
+    return result;
+}
+
+double parse_number_field(const std::string& text, const std::string& key) {
+    std::size_t pos = find_json_value_start(text, key);
+    return parse_json_number(text, pos);
+}
+
+CalibrationResult load_calibration_json(const std::string& path) {
+    const std::string text = read_text_file(path);
+
+    CalibrationResult result{};
+    result.geometry.master_intrinsics = parse_intrinsics_field(text, "left_intrinsics");
+    result.geometry.slave_intrinsics = parse_intrinsics_field(text, "right_intrinsics");
+
+    const Mat3 R_left_to_right = parse_mat3_field(text, "rotation_left_to_right");
+    const Vec3 t_left_to_right = parse_vec3_field(text, "translation_left_to_right");
+    result.reprojection_rms = parse_number_field(text, "reprojection_rms");
+
+    result.geometry.R_slave_to_master = transpose(R_left_to_right);
+    result.geometry.t_slave_in_master = mul(
+        matmul(result.geometry.R_slave_to_master, t_left_to_right),
+        -1.0);
+
+    return result;
 }
 
 bool parse_event_line(const std::string& line, Event& out) {
@@ -427,15 +687,18 @@ int main(int argc, char** argv) {
         const std::string slave_path = (argc > 2) ? argv[2] : "events_slave.csv";
         const std::string output_path = (argc > 3) ? argv[3] : "points3d.csv";
         const std::string mask_path = (argc > 4) ? argv[4] : "roi_mask.pgm";
+        const std::string calibration_path =
+            (argc > 5) ? argv[5] : "scripts/calib_results/calibration.json";
 
         const auto master_events = read_events(master_path);
         const auto slave_events = read_events(slave_path);
+        const auto calibration = load_calibration_json(calibration_path);
         const auto mask_image = load_mask_pgm(mask_path);
 
         const auto points = reconstruct(
             master_events,
             slave_events,
-            kStereoGeometry,
+            calibration.geometry,
             &mask_image);
 
         write_points_csv(output_path, points);
@@ -444,6 +707,8 @@ int main(int argc, char** argv) {
         std::cout << "Input slave: " << slave_path << '\n';
         std::cout << "Read master events: " << master_events.size() << '\n';
         std::cout << "Read slave events: " << slave_events.size() << '\n';
+        std::cout << "Loaded calibration: " << calibration_path
+              << " (RMS: " << calibration.reprojection_rms << ")\n";
         std::cout << "Loaded ROI mask: " << mask_path
                   << " (" << mask_image.width << "x" << mask_image.height << ")\n";
         std::cout << "Reconstructed points: " << points.size() << '\n';

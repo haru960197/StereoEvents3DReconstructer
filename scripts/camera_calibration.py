@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import json
 import os
 from metavision_core.event_io import EventsIterator
 
@@ -191,7 +192,31 @@ def main():
     print("\n[Translation Vector (Left to Right)]")
     print(T)
 
-    # 必要に応じてJSONやnpz形式で保存する処理を追加
+    calibration_path = os.path.join(OUTPUT_DIR, "calibration.json")
+    calibration_data = {
+        "format": "stereo_events_calibration_v1",
+        "image_size": {
+            "width": int(width),
+            "height": int(height),
+        },
+        "board_size": {
+            "columns": int(BOARD_SIZE[0]),
+            "rows": int(BOARD_SIZE[1]),
+        },
+        "square_size_m": float(SQUARE_SIZE),
+        "reprojection_rms": float(ret_stereo),
+        "left_intrinsics": mtx_l.tolist(),
+        "left_distortion": dist_l.reshape(-1).tolist(),
+        "right_intrinsics": mtx_r.tolist(),
+        "right_distortion": dist_r.reshape(-1).tolist(),
+        "rotation_left_to_right": R.tolist(),
+        "translation_left_to_right": T.reshape(-1).tolist(),
+    }
+
+    with open(calibration_path, "w", encoding="utf-8") as f:
+        json.dump(calibration_data, f, indent=2, ensure_ascii=False)
+
+    print(f"\nキャリブレーション結果を保存しました: {calibration_path}")
 
 if __name__ == "__main__":
     main()
