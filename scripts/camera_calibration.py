@@ -48,6 +48,7 @@ def main():
     STEP_MS = 10000  # 10ms（10000us）ごとにイベントを取得
     WINDOW_SIZE = 4  # 10ms × 4 = 40ms分のイベントを1つの画像に合成する
 
+    DEBUG_OUTPUT_DIR = "scripts/calib_results"
     OUTPUT_DIR = "config"
     
     # OpenCVのコーナー検出サブピクセル精度の終了基準
@@ -74,6 +75,7 @@ def main():
     
     print("イベントデータの解析とコーナー検出を開始します...")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(DEBUG_OUTPUT_DIR, exist_ok=True)
     
     frame_count = 0
     success_count = 0
@@ -147,7 +149,7 @@ def main():
             if DEBUG_MODE:
                 # 左右画像を横に連結して、フレーム番号で保存
                 merged = cv2.hconcat([img_left, img_right])
-                save_path = os.path.join(OUTPUT_DIR, f"{frame_count}.png")
+                save_path = os.path.join(DEBUG_OUTPUT_DIR, f"{frame_count}.png")
                 cv2.imwrite(save_path, merged)
 
     print(f"\nコーナー検出終了: 全 {frame_count} フレーム中、{success_count} ペアのコーナーを取得しました。")
