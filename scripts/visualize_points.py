@@ -119,6 +119,13 @@ class EventCloudViewer:
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.colors = o3d.utility.Vector3dVector(colors)
 
+        # Statistical Outlier Removal 
+        # 各点の近傍 20 個の点までの平均距離を計算し、
+        # 全体の平均距離から標準偏差の 2.0 倍以上離れている点を除去する
+        cl, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
+        pcd = pcd.select_by_index(ind)
+
+
         # ★ セグフォ対策: ジオメトリの安全な更新 ★
         if self.scene_widget.scene.has_geometry("events_points"):
             self.scene_widget.scene.remove_geometry("events_points")
