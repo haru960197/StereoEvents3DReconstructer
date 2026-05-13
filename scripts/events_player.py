@@ -21,10 +21,11 @@ def main():
     file_path = sys.argv[1] if len(sys.argv) > 1 else "./input/events_master.raw"
     print(f"Reading file: {file_path}")
 
-    # 2. イベントイテレータの初期化 (C++のACC=20000に相当)
+    # 2. イベントイテレータの初期化
     delta_t_us = 20000
     try:
         mv_iterator = EventsIterator(input_path=file_path, delta_t=delta_t_us)
+        mv_iter = iter(mv_iterator)
     except Exception as e:
         print(f"Error opening file: {e}")
         sys.exit(1)
@@ -55,15 +56,16 @@ def main():
 
     # 4. メインループ
     while True:
-        # シーク要求があった場合、イテレータを開始時間を指定して作り直すことでジャンプを実現
+        # シーク要求があった場合、イテレータを開始時間を指定して作り直す
         if seek_requested:
             seek_requested = False
             mv_iterator = EventsIterator(input_path=file_path, start_ts=target_time_us, delta_t=delta_t_us)
+            mv_iter = iter(mv_iterator)
             current_time_ms = target_time_us // 1000
 
         try:
             # 次の20ms分のイベント群を取得
-            evs = next(mv_iterator)
+            evs = next(mv_iter)
         except StopIteration:
             print("End of file reached.")
             break
