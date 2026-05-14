@@ -128,7 +128,7 @@ class EventCloudViewer:
 
 def main():
     try:
-        viewer = EventCloudViewer("points3d.csv")
+        viewer = EventCloudViewer("./output/points3d.csv")
         gui.Application.instance.run()
     except Exception as e:
         print(f"致命的なエラー: {e}")
