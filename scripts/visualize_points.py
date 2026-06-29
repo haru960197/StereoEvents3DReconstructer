@@ -25,9 +25,9 @@ class EventCloudViewer:
         
         # ---------------------------------------------------
         # 表示する時間枠（Time Window）: マイクロ秒単位
-        # 500000us = 500ms
+        # 50000us = 50ms
         # ---------------------------------------------------
-        self.time_window = 500000 
+        self.time_window = 50000
 
         # 1. GUIアプリケーションの初期化
         gui.Application.instance.initialize()
@@ -128,7 +128,7 @@ class EventCloudViewer:
 
 def main():
     try:
-        viewer = EventCloudViewer("./output/points3d.csv")
+        viewer = EventCloudViewer("../FaceEvent3DReconstructer/output/events_3d.csv")
         gui.Application.instance.run()
     except Exception as e:
         print(f"致命的なエラー: {e}")
