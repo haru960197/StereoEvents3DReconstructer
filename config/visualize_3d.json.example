@@ -1,0 +1,10 @@
+{
+  "csv_path": "output/points3d.csv",
+  "output_video_path": "output/events_3d.mp4",
+  "fps": 30,
+  "time_window_us": 8000,
+  "step_time_us": 8000,
+  "video_width": 1280,
+  "video_height": 720,
+  "point_size": 3.0
+}
